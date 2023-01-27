@@ -41,15 +41,16 @@ bool HugeInteger::carryshiftcheck(const HugeInteger& h){
 	//Case: addition with negative
 	if (negative || h.negative) return false; //negatives cannot have an extra digit from carry
 
-
+	//std::cout << len_bin << " " <<h.len_bin << "\n";
 	//Case: positive-positive addition
 	int offset = 0;
 	while (s_val_bin - offset >= 0){
-		int ind_pos = s_val_bin - offset;
-		int self_v =(ind_pos > len_bin) ? 0 : ((unsigned_i[(ind_pos-1)/2] >> ((ind_pos % 2) ? 0: 4)) & 15);
-		int h_v = (ind_pos > h.len_bin) ? 0 : (h.negative ? -1 : 1)*((h.unsigned_i[(ind_pos-1)/2] >> ((ind_pos % 2) ? 0: 4)) & 15);
+		int self_v = (offset > len_bin) ? 0 : ((negative ? -1 : 1)*((unsigned_i[offset/2] >> (((offset) % 2) ? 0: 4) & 15)));
+		int h_v = (offset > h.len_bin) ? 1 : ((h.negative ? -1 : 1)*((h.unsigned_i[(offset)/2] >> (((offset) % 2) ? 0 : 4) & 15)));
 		int result = self_v + h_v;
 		
+		//std::cout << offset << " " <<  self_v << " " << h_v << "\n";
+
 		if(result >= 10) return true; //indicates a forced carry
 		if(result < 9) return false; //if the total is exactly 9, a carry from the next digit down could force carry digit. Thus, we check the next digit down by iterating this loop
 		
@@ -69,26 +70,31 @@ HugeInteger HugeInteger::add(const HugeInteger& h) {
 
 	int16_t sum_v;
 	int8_t carry = 0;
-	std::cout << "LB" << new_hi.len_bin << "  " << h.len_bin  << "  "<<  len_bin<< " \n";
+	//std::cout << "LB" << new_hi.len_bin << "  " << h.len_bin  << "  "<<  len_bin<< " \n";
 
 	for(int i = 0; i < new_hi.len_bin-cscs; i++){
-		sum_v = (h.negative ? -1 : 1)*((h.unsigned_i[(h.len_bin-1-i)/2] >> (((h.len_bin-1-i) % 2) ? 0: 4)) & 15) + (negative ? -1 : 1)*((unsigned_i[(len_bin-1-i)/2] >> (((len_bin-1-i) % 2) ? 0: 4)) & 15) + carry;
+		sum_v = 
+		  ((i > h.len_bin-1) ? 0 : ((h.negative ? -1 : 1)*((h.unsigned_i[(h.len_bin-1-i)/2] >> (((h.len_bin-1-i) % 2) ? 0: 4)) & 15)))
+		+ ((i > len_bin-1) ? 0 : ((negative ? -1 : 1)*((unsigned_i[(len_bin-1-i)/2] >> (((len_bin-1-i) % 2) ? 0: 4)) & 15)))
+		+ carry;
 		if (sum_v > 9) {
 			carry = 1;
 			sum_v -= 10;
-		} if (sum_v < 0) {
+		} else if (sum_v < 0) {
 			carry = -1;
 			sum_v += 10;
 		} else {
 			carry = 0;
 		}
-		std::cout << (h.negative ? -1 : 1)*((h.unsigned_i[(h.len_bin-1-i)/2] >> (((h.len_bin-1-i) % 2) ? 0: 4)) & 15) << " + " << (negative ? -1 : 1)*((unsigned_i[(len_bin-1-i)/2] >> (((len_bin-1-i) % 2) ? 0: 4)) & 15)  << " + " << carry << " = " << sum_v;
+		//std::cout << (h.negative ? -1 : 1)*((h.unsigned_i[(h.len_bin-1-i)/2] >> (((h.len_bin-1-i) % 2) ? 0: 4)) & 15) << " + " << (negative ? -1 : 1)*((unsigned_i[(len_bin-1-i)/2] >> (((len_bin-1-i) % 2) ? 0: 4)) & 15)  << " + " << carry << " = " << sum_v;
 		new_hi.unsigned_i[(new_hi.len_bin-i-1)/2] += sum_v << (((new_hi.len_bin-i-1) % 2) ? 0 : 4);
-		std::cout << " " << std::bitset<8>(new_hi.unsigned_i[(new_hi.len_bin-i)/2]) << "\n";
+		//std::cout << " " << std::bitset<8>(new_hi.unsigned_i[(new_hi.len_bin-i)/2]) << "\n";
 	}
-	std::cout << new_hi.toString();
+	//std::cout << new_hi.toString() << " " << carry <<  "\n";
 	if (carry > 0){
-		new_hi.unsigned_i[0] = sum_v << 4;
+		new_hi.unsigned_i[0] += 1 << 4;
+	//std::cout << new_hi.toString();
+
 		return new_hi;
 	}
 	if (carry < 0){
