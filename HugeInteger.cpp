@@ -45,7 +45,7 @@ bool HugeInteger::carryshiftcheck(const HugeInteger& h){
 	int offset = 0;
 	while (s_val_bin - offset >= 0){
 		int self_v = (offset > len_bin) ? 0 : ((negative ? -1 : 1)*((unsigned_i[offset/2] >> (((offset) % 2) ? 0: 4) & 15)));
-		int h_v = (offset > h.len_bin) ? 1 : ((h.negative ? -1 : 1)*((h.unsigned_i[(offset)/2] >> (((offset) % 2) ? 0 : 4) & 15)));
+		int h_v = (offset > h.len_bin) ? 0 : ((h.negative ? -1 : 1)*((h.unsigned_i[(offset)/2] >> (((offset) % 2) ? 0 : 4) & 15)));
 		int result = self_v + h_v;
 		
 		//std::cout << offset << " " <<  self_v << " " << h_v << "\n";
