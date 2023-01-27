@@ -1,5 +1,4 @@
 #include "HugeInteger.h"
-#include <bitset>
 
 HugeInteger::HugeInteger(const std::string& val) {
 	if (val.length() == 0) throw "Empty input string";
