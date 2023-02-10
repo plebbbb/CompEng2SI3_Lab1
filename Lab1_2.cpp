@@ -23,6 +23,8 @@ int main() {
         totalMark += thi.testConstructorString();
         totalMark += thi.testConstructorNumber();
         totalMark += thi.testPositiveAddition();
+        totalMark += thi.testCompareTo();
+        totalMark += thi.testAdditionSubtraction();
     }else{
         totalMark += thi.testAdditionSubtraction();
         totalMark += thi.testCompareTo();

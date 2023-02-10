@@ -1,112 +1,190 @@
 #include "HugeInteger.h"
-#include <bitset>
 
 HugeInteger::HugeInteger(const std::string& val) {
 	if (val.length() == 0) throw "Empty input string";
-	
+
 	if (val[0] == '-'){
-		len_bin--;
 		negative = true;
 	}
-	
-	len_bin += val.length();
-	unsigned_i = (uint8_t*)calloc(len_bin/2 + 1, 1); 
 
-	int8_t tmp;
+	bool zeroflag = true;
+	short tmp = 0;
 
-	//maximized memory efficiency for non-base conversion case, each base 10 digit gets the bare minimum 4 bits required to store 0-9, with padding space either 0 or 4 bits
-	for(int i = 0; i < len_bin; i++){
-		tmp = (val[i+negative]-'0');
-		if (tmp < 0 || tmp > 9) throw "Invalid character";
-		unsigned_i[(i)/2] += tmp << ((i % 2) ? 0 : 4);
+
+	u_digits = std::vector<short>(val.length()-negative);
+
+	for(int i = negative; i < val.length(); i++){
+		if ((tmp = val[i]-48) < 0 || tmp > 9) throw "invalid character";
+		u_digits.emplace_back(tmp);
 	}
 
+	prune_L_zeros();
 }
 
-HugeInteger::HugeInteger(){}
+HugeInteger::HugeInteger(){
+	u_digits = std::vector<short>();
+}
+
 
 HugeInteger::HugeInteger(int n) {
-	if (n <= 0) throw "Out of bounds";
-	len_bin = n;
-	unsigned_i = (uint8_t*)calloc(len_bin/2 + 1, 1); 
-	unsigned_i[0] = (1 + (rand() % 9)) << 4;
-	for (int i = 1; i < len_bin-1 ; i++) {
-		unsigned_i[i/2] += (rand() % 10) << ((i % 2) ? 0 : 4);
+	if (n < 1) throw "out of bounds";
+	negative = false;
+
+	u_digits = std::vector<short>();
+	u_digits.reserve(n);
+
+	u_digits.emplace_back(1 + (rand() % 9));
+
+	for (int i = 1; i < n; i++){
+		u_digits.emplace_back(rand() % 10);
 	}
 }
 
-bool HugeInteger::carryshiftcheck(const HugeInteger& h){
-	int s_val_bin = (len_bin > h.len_bin) ? len_bin : h.len_bin;
-
-	//Case: addition with negative
-	if (negative || h.negative) return false; //negatives cannot have an extra digit from carry
-
-	//std::cout << len_bin << " " <<h.len_bin << "\n";
-	//Case: positive-positive addition
-	int offset = 0;
-	while (s_val_bin - offset >= 0){
-		int self_v = (offset > len_bin) ? 0 : ((negative ? -1 : 1)*((unsigned_i[offset/2] >> (((offset) % 2) ? 0: 4) & 15)));
-		int h_v = (offset > h.len_bin) ? 1 : ((h.negative ? -1 : 1)*((h.unsigned_i[(offset)/2] >> (((offset) % 2) ? 0 : 4) & 15)));
-		int result = self_v + h_v;
-		
-		//std::cout << offset << " " <<  self_v << " " << h_v << "\n";
-
-		if(result >= 10) return true; //indicates a forced carry
-		if(result < 9) return false; //if the total is exactly 9, a carry from the next digit down could force carry digit. Thus, we check the next digit down by iterating this loop
-		
-		offset++;
+void HugeInteger::prune_L_zeros(){
+	int prune_len = 0;
+	for (short a : u_digits){
+		if (a != 0) break;
+		prune_len++;
 	}
-	return false; //if we somehow made it through the whole integer, then there is no next digit to force carries
+	if (prune_len == u_digits.size()) negative = false;
+	u_digits.erase(u_digits.begin(), u_digits.begin()+(prune_len - ((prune_len == u_digits.size()) ? 1 : 0)));
+	u_digits.shrink_to_fit();
+}
+
+HugeInteger HugeInteger::add_same_sign(const HugeInteger& h) {
+	HugeInteger output;
+
+	unsigned int u_sz = u_digits.size();
+	unsigned int h_sz = h.u_digits.size();
+
+	unsigned int iter_count = ((u_sz > h_sz) ? u_sz : h_sz);
+
+	output.u_digits.reserve(iter_count+1);
+
+	short cur_d = 0;
+	short carry = 0;
+
+	bool carrystate = false;
+
+	int u_ind;
+	int h_ind;
+	for (int i = 0; i < iter_count; i++){
+		u_ind = u_sz-i-1;
+		h_ind = h_sz-i-1;
+
+		cur_d = carry + ((u_ind >= 0) ? (u_digits.at(u_ind)) : 0) + ((h_ind >= 0) ? (h.u_digits.at(h_ind)) : 0);
+	
+		if (cur_d > 9){
+			carry = 1;
+		} else {
+			//output.u_digits.emplace(output.u_digits.end()-i, abs(cur_d));
+			output.u_digits.emplace(output.u_digits.end()-i, abs(cur_d));
+			carry = 0;
+			continue;
+		}
+		output.u_digits.emplace(output.u_digits.end()-i, abs(cur_d)-10);
+	}
+
+	switch(carry){
+		case 0:
+			output.u_digits.emplace(output.u_digits.begin(),0);
+			break;
+		case 1:
+			output.u_digits.emplace(output.u_digits.begin(),1);
+			//output.negative = false;
+			break;
+	}
+	output.negative = negative;
+	output.prune_L_zeros();
+	return output;
+}
+
+HugeInteger HugeInteger::add_dif_sign(const HugeInteger& h) {
+	HugeInteger output;
+
+	const std::vector<short>* b_val;
+	const std::vector<short>* l_val;
+
+	bool digit_v_inv = false;
+
+	if (compareToABS(h) < 0){
+		b_val = &(h.u_digits);
+		l_val = &(u_digits);
+		digit_v_inv = true;
+	} else {
+		b_val = &(u_digits);
+		l_val = &(h.u_digits);
+	}
+
+	unsigned int u_sz = b_val->size();
+	unsigned int h_sz = l_val->size();
+
+	short sub_flipside = (u_sz >= h_sz) ? 1 : -1;
+
+	unsigned int iter_count = ((u_sz > h_sz) ? u_sz : h_sz);
+
+	output.u_digits.reserve(iter_count+1);
+
+	short cur_d = 0;
+	short carry = 0;
+
+	bool carrystate = false;
+
+	int u_ind;
+	int h_ind;
+	for (int i = 0; i < iter_count; i++){
+		u_ind = u_sz-i-1;
+		h_ind = h_sz-i-1;
+
+		cur_d = carry + ((u_ind >= 0) ? (b_val->at(u_ind)) : 0) - ((h_ind >= 0) ? (l_val->at(h_ind)) : 0);
+	
+		if (sub_flipside*cur_d < 0){
+			carry = -1;
+			output.u_digits.emplace(output.u_digits.end()-i, 10-abs(cur_d));
+		} else {
+			//output.u_digits.emplace(output.u_digits.end()-i, abs(cur_d));
+			output.u_digits.emplace(output.u_digits.end()-i, abs(cur_d));
+			carry = 0;
+		}
+	}
+
+	switch(carry){
+		case 0:
+			output.u_digits.emplace(output.u_digits.begin(),0);
+			output.negative = (cur_d >= 0) ? false : true;
+			break;
+		case -1:
+			output.u_digits.emplace(output.u_digits.begin(),1);
+			output.negative = true;
+			break;
+	}
+	if (negative) output.negative = !output.negative;
+	if (digit_v_inv) output.negative = !output.negative;
+	output.prune_L_zeros();
+
+	return output;
 }
 
 
 HugeInteger HugeInteger::add(const HugeInteger& h) {
-	HugeInteger new_hi;
-	//can't assume len_bin == h.len_bin, as there exists case, 99999, 1, where carry is required.
-	bool cscs = carryshiftcheck(h);
-	new_hi.len_bin = cscs + ((len_bin > h.len_bin) ? len_bin : h.len_bin);
-
-	new_hi.unsigned_i = (uint8_t*)calloc(new_hi.len_bin/2 + 1, 1);
-
-	int16_t sum_v;
-	int8_t carry = 0;
-	//std::cout << "LB" << new_hi.len_bin << "  " << h.len_bin  << "  "<<  len_bin<< " \n";
-
-	for(int i = 0; i < new_hi.len_bin-cscs; i++){
-		sum_v = 
-		  ((i > h.len_bin-1) ? 0 : ((h.negative ? -1 : 1)*((h.unsigned_i[(h.len_bin-1-i)/2] >> (((h.len_bin-1-i) % 2) ? 0: 4)) & 15)))
-		+ ((i > len_bin-1) ? 0 : ((negative ? -1 : 1)*((unsigned_i[(len_bin-1-i)/2] >> (((len_bin-1-i) % 2) ? 0: 4)) & 15)))
-		+ carry;
-		if (sum_v > 9) {
-			carry = 1;
-			sum_v -= 10;
-		} else if (sum_v < 0) {
-			carry = -1;
-			sum_v += 10;
-		} else {
-			carry = 0;
-		}
-		//std::cout << (h.negative ? -1 : 1)*((h.unsigned_i[(h.len_bin-1-i)/2] >> (((h.len_bin-1-i) % 2) ? 0: 4)) & 15) << " + " << (negative ? -1 : 1)*((unsigned_i[(len_bin-1-i)/2] >> (((len_bin-1-i) % 2) ? 0: 4)) & 15)  << " + " << carry << " = " << sum_v;
-		new_hi.unsigned_i[(new_hi.len_bin-i-1)/2] += sum_v << (((new_hi.len_bin-i-1) % 2) ? 0 : 4);
-		//std::cout << " " << std::bitset<8>(new_hi.unsigned_i[(new_hi.len_bin-i)/2]) << "\n";
+	HugeInteger output;
+	if (negative == h.negative){
+		output = add_same_sign(h);
+	} else {
+		output = add_dif_sign(h);
 	}
-	//std::cout << new_hi.toString() << " " << carry <<  "\n";
-	if (carry > 0){
-		new_hi.unsigned_i[0] += 1 << 4;
-	//std::cout << new_hi.toString();
-
-		return new_hi;
-	}
-	if (carry < 0){
-		new_hi.negative = true;
-	}
-	return new_hi;
-
+	return output;
 }
 
+
 HugeInteger HugeInteger::subtract(const HugeInteger& h) {
-	// TODO
-	return HugeInteger("");
+	HugeInteger output;
+	if (negative != h.negative){
+		output = add_same_sign(h);
+	} else {
+		output = add_dif_sign(h);
+	}
+	return output;
 }
 
 HugeInteger HugeInteger::multiply(const HugeInteger& h) {
@@ -115,14 +193,53 @@ HugeInteger HugeInteger::multiply(const HugeInteger& h) {
 }
 
 int HugeInteger::compareTo(const HugeInteger& h) {
-	// TODO
+	unsigned int u_sz = u_digits.size();
+	unsigned int h_sz = h.u_digits.size();
+
+	if (!negative && h.negative) return 1;
+	if (negative && !h.negative) return -1;
+
+	if (u_sz > h_sz) return negative ? -1 : 1;
+	if (u_sz < h_sz) return negative ? 1 : -1;
+
+	if(u_sz == h_sz){
+		for (int i = 0; i < u_sz; i++){
+			if (u_digits.at(i) > h.u_digits.at(i)){
+				return negative ? -1 : 1;
+			}
+			if (u_digits.at(i) < h.u_digits.at(i)){
+				return negative ? 1 : -1;			
+			} 
+		}
+	}
+
 	return 0;
 }
 
+int HugeInteger::compareToABS(const HugeInteger& h) {
+	unsigned int u_sz = u_digits.size();
+	unsigned int h_sz = h.u_digits.size();
+
+	if (u_sz > h_sz) return 1;
+	if (u_sz < h_sz) return -1;
+
+	if(u_sz == h_sz){
+		for (int i = 0; i < u_sz; i++){
+			if (u_digits.at(i) > h.u_digits.at(i)){
+				return 1;
+			}
+			if (u_digits.at(i) < h.u_digits.at(i)){
+				return -1;			
+			} 
+		}
+	}
+
+	return 0;
+}
 std::string HugeInteger::toString() {
 	std::string output = negative ? "-" : ""; 
-	for(int i = 0; i < len_bin; i++){
-		output+=(char)('0' + ((unsigned_i[i/2] >> ((i % 2) ? 0: 4)) & 15));
+	for (int a : u_digits){
+		output += char(a + 48);
 	}
 	return output;
 }
