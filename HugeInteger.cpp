@@ -25,7 +25,6 @@ HugeInteger::HugeInteger(){
 	u_digits = std::vector<short>();
 }
 
-
 HugeInteger::HugeInteger(int n) {
 	if (n < 1) throw "out of bounds";
 	negative = false;
@@ -54,8 +53,11 @@ void HugeInteger::prune_L_zeros(){
 HugeInteger HugeInteger::add_same_sign(const HugeInteger& h) {
 	HugeInteger output;
 
-	unsigned int u_sz = u_digits.size();
-	unsigned int h_sz = h.u_digits.size();
+	unsigned int u_sz = u_digits.size() + b10_mag;
+	unsigned int h_sz = h.u_digits.size() + h.b10_mag;
+
+	unsigned int u_rsz = u_digits.size();
+	unsigned int h_rsz = h.u_digits.size();
 
 	unsigned int iter_count = ((u_sz > h_sz) ? u_sz : h_sz);
 
@@ -72,7 +74,8 @@ HugeInteger HugeInteger::add_same_sign(const HugeInteger& h) {
 		u_ind = u_sz-i-1;
 		h_ind = h_sz-i-1;
 
-		cur_d = carry + ((u_ind >= 0) ? (u_digits.at(u_ind)) : 0) + ((h_ind >= 0) ? (h.u_digits.at(h_ind)) : 0);
+
+		cur_d = carry + (((u_ind < u_rsz) && (u_ind >= 0)) ? (u_digits.at(u_ind)) : 0) + (((h_ind < h_rsz) && (h_ind >= 0))? (h.u_digits.at(h_ind)) : 0);
 	
 		if (cur_d > 9){
 			carry = 1;
@@ -105,19 +108,30 @@ HugeInteger HugeInteger::add_dif_sign(const HugeInteger& h) {
 	const std::vector<short>* b_val;
 	const std::vector<short>* l_val;
 
+	unsigned int u_b10_mag;
+	unsigned int h_b10_mag;
+
+
 	bool digit_v_inv = false;
 
 	if (compareToABS(h) < 0){
 		b_val = &(h.u_digits);
 		l_val = &(u_digits);
+		u_b10_mag = h.b10_mag;
+		h_b10_mag = b10_mag;
 		digit_v_inv = true;
 	} else {
 		b_val = &(u_digits);
 		l_val = &(h.u_digits);
+		h_b10_mag = h.b10_mag;
+		u_b10_mag = b10_mag;
 	}
 
-	unsigned int u_sz = b_val->size();
-	unsigned int h_sz = l_val->size();
+	unsigned int u_sz = b_val->size() + u_b10_mag;
+	unsigned int h_sz = l_val->size() + h_b10_mag;
+
+	unsigned int u_rsz = b_val->size();
+	unsigned int h_rsz = l_val->size();
 
 	short sub_flipside = (u_sz >= h_sz) ? 1 : -1;
 
@@ -136,7 +150,7 @@ HugeInteger HugeInteger::add_dif_sign(const HugeInteger& h) {
 		u_ind = u_sz-i-1;
 		h_ind = h_sz-i-1;
 
-		cur_d = carry + ((u_ind >= 0) ? (b_val->at(u_ind)) : 0) - ((h_ind >= 0) ? (l_val->at(h_ind)) : 0);
+		cur_d = carry + (((u_ind < u_rsz) && (u_ind >= 0)) ? (b_val->at(u_ind)) : 0) - (((h_ind < h_rsz) && (h_ind >= 0)) ? (l_val->at(h_ind)) : 0);
 	
 		if (sub_flipside*cur_d < 0){
 			carry = -1;
@@ -165,7 +179,6 @@ HugeInteger HugeInteger::add_dif_sign(const HugeInteger& h) {
 	return output;
 }
 
-
 HugeInteger HugeInteger::add(const HugeInteger& h) {
 	HugeInteger output;
 	if (negative == h.negative){
@@ -175,7 +188,6 @@ HugeInteger HugeInteger::add(const HugeInteger& h) {
 	}
 	return output;
 }
-
 
 HugeInteger HugeInteger::subtract(const HugeInteger& h) {
 	HugeInteger output;
@@ -187,9 +199,45 @@ HugeInteger HugeInteger::subtract(const HugeInteger& h) {
 	return output;
 }
 
+HugeInteger HugeInteger::multiply_d10(unsigned short h, int digit_shift, bool neg) {
+	HugeInteger output;
+
+	unsigned int u_h = abs(h);
+
+	unsigned int u_sz = u_digits.size();
+	unsigned int cur_d;
+	unsigned int carry = 0;
+	unsigned int u_ind;
+	output.negative = negative ^ neg;
+	output.b10_mag = digit_shift;
+
+	for (int i = 0; i < u_sz; i++){
+		u_ind = u_sz-i-1;
+		cur_d = carry + u_digits.at(u_ind) * u_h;
+		carry = cur_d/10;
+	//	std::cout << carry << "\n";
+		output.u_digits.emplace(output.u_digits.end()-i, cur_d - carry*10);
+	}
+	output.u_digits.emplace(output.u_digits.begin(),carry);
+
+	output.prune_L_zeros();
+	//std::cout << output.toString() << "\n";
+	return output;
+}
+
 HugeInteger HugeInteger::multiply(const HugeInteger& h) {
-	// TODO
-	return HugeInteger("");
+	HugeInteger output("0");
+	unsigned int h_sz = h.u_digits.size();
+	unsigned int h_ind;
+	for (int i = 0; i < h_sz; i++){
+		h_ind = h_sz-i-1;
+		if (h.u_digits.at(h_ind) == 0) continue;
+		HugeInteger e = multiply_d10(h.u_digits.at(h_ind), i, h.negative);
+		//std::cout << e.u_digits.size() << "\n";
+		output = output.add(e);
+	}
+	//std::cout << "job done\n"; 
+	return output;
 }
 
 int HugeInteger::compareTo(const HugeInteger& h) {
@@ -236,6 +284,7 @@ int HugeInteger::compareToABS(const HugeInteger& h) {
 
 	return 0;
 }
+
 std::string HugeInteger::toString() {
 	std::string output = negative ? "-" : ""; 
 	for (int a : u_digits){

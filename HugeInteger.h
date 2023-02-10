@@ -8,9 +8,11 @@ class HugeInteger
 private:
 	std::vector<short> u_digits;
 	bool negative = false;
+	unsigned int b10_mag = 0;
 	void prune_L_zeros();
 	HugeInteger add_same_sign(const HugeInteger & h);
 	HugeInteger add_dif_sign(const HugeInteger & h);
+	HugeInteger multiply_d10(unsigned short h, int digit_shift, bool neg);
 	int compareToABS(const HugeInteger& h);
 public:
 	// Required methods

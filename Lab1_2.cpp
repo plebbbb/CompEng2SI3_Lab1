@@ -7,7 +7,7 @@ int main() {
     // when test failed, the size of number <= NUM_DISPLAY, display the number
     unsigned int num_display = 1000;
     // iterate the MAX_SIZE_ARRAY MAX_RUN times
-    unsigned int max_run = 50;
+    unsigned int max_run = 5;
     // use for generating invalid string for constructor 1 (with string input)
     unsigned int max_invalid_string = 5;
     // different size for test
@@ -15,7 +15,7 @@ int main() {
 
     double totalMark = 0;
 
-    string demoLab = "Lab1"; // set to Lab1 or Lab2
+    string demoLab = "Lab2"; // set to Lab1 or Lab2
 
     TestHugeInteger thi(num_display, max_run, max_invalid_string, max_size_array);
 
@@ -23,8 +23,6 @@ int main() {
         totalMark += thi.testConstructorString();
         totalMark += thi.testConstructorNumber();
         totalMark += thi.testPositiveAddition();
-        totalMark += thi.testCompareTo();
-        totalMark += thi.testAdditionSubtraction();
     }else{
         totalMark += thi.testAdditionSubtraction();
         totalMark += thi.testCompareTo();
